@@ -17,3 +17,7 @@ Repositório central e auditável de aprovação humana (**Human-in-the-Loop**) 
 
 - Os aprovadores listados em `policies/governance-policy.json` (`lifecycle_override_approvers`) podem solicitar à *Fábrica de Software Agêntica Governada* para **desprovisionar agora** um ambiente ativo ou **alterar o seu TTL** (entre `5m` e `24h`).
 - A identidade vem da sessão autenticada do Gemini Enterprise. O agente grava em `lifecycle-requests/` um pedido com selo **HMAC-SHA256** processado por `workload-lifecycle-override.yml`.
+
+## Modelos de Aprovação de PR (GitHub App `[bot]` vs Machine User vs Solo-Owner)
+
+- Para evitar o bloqueio nativo do GitHub quando o autor do PR é a mesma conta humana aprovadora (*"Reviewers cannot approve their own pull request"*), consulte o guia arquitetural completo em [docs/GOVERNANCE_PR_APPROVAL_MODELS.md](docs/GOVERNANCE_PR_APPROVAL_MODELS.md).
