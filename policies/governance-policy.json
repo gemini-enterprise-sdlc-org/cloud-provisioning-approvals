@@ -1,0 +1,44 @@
+{
+  "policy_version": "1.2.0",
+  "allowed_github_orgs": [
+    "gemini-enterprise-sdlc-org"
+  ],
+  "allowed_target_gcp_projects": [
+    "ernani-demo-argolis"
+  ],
+  "required_provisioner_service_account": "sdlc-provisioner-sa@ernani-demo-argolis.iam.gserviceaccount.com",
+  "required_deployed_git_tag": "GCP_DEPLOYED_VERSION",
+  "reserved_governance_repos": [
+    "cloud-provisioning-approvals",
+    "sdlc-platform-skills",
+    "sdlc-platform-template"
+  ],
+  "lifecycle_override_approvers": [
+    "admin@ernanimartins.altostrat.com",
+    "ernanimartins@google.com"
+  ],
+  "lifecycle_override_min_minutes": 5,
+  "lifecycle_override_max_minutes": 1440,
+  "allowed_database_types": [
+    "postgresql",
+    "mysql",
+    "sqlserver",
+    "none"
+  ],
+  "singleton_sql_engines": {
+    "postgresql": "sdlc-shared-pgsql",
+    "mysql": "sdlc-shared-mysql",
+    "sqlserver": "sdlc-shared-sqlserver"
+  },
+  "singleton_redis_engine": "sdlc-shared-redis",
+  "require_alert_emails": true,
+  "default_demo_ttl": "1h",
+  "default_sandbox_ttl": "15d",
+  "min_ttl_minutes": 15,
+  "max_ttl_days": 90,
+  "min_budget_brl": 10.0,
+  "max_budget_brl": 10000.0,
+  "teardown_mode": "terraform_destroy_workload_only",
+  "preserve_gcp_project": true,
+  "preserve_git_repository": true
+}

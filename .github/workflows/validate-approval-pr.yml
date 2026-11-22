@@ -1,0 +1,62 @@
+name: Validate Provisioning Approval PR (Budget, TTL, GCP_DEPLOYED_VERSION & SARIF Gate)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "requests/**"
+      - "policies/**"
+      - "scripts/**"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  validate-governance:
+    name: Enforce Mandatory Budget, TTL & GCP_DEPLOYED_VERSION SHA Lock
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate all changed approval-manifest.json files (Policy + Anti-Drift Integrity Seal)
+        run: |
+          set -euo pipefail
+          CHANGED=$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD" -- 'requests/*/approval-manifest.json' || true)
+          if [[ -z "${CHANGED}" ]]; then
+            CHANGED=$(find requests -maxdepth 2 -name 'approval-manifest.json' 2>/dev/null || true)
+          fi
+          if [[ -z "${CHANGED}" ]]; then
+            echo "Nenhum manifesto em requests/*/approval-manifest.json alterado."
+            exit 0
+          fi
+
+          {
+            echo "## Validação Determinística de Governança (FinOps, Tag \`GCP_DEPLOYED_VERSION\`, TTL & Selo Anti-Drift)"
+            echo ""
+            echo "| Workload | Repositório & Tag | SHA Pinado (Anti-Tampering) | Selo Anti-Drift | Diff vs \`main\` | Orçamento | TTL | Veredito |"
+            echo "| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          for MANIFEST in ${CHANGED}; do
+            if [[ ! -f "${MANIFEST}" ]]; then
+              continue
+            fi
+            TMP_OUT=$(mktemp)
+            python3 scripts/enforce_provisioning_policy.py --mode validate-pr --manifest "${MANIFEST}" --github-output "${TMP_OUT}"
+            # shellcheck disable=SC1090
+            source "${TMP_OUT}"
+            echo "| \`${workload_slug}\` | \`${github_org}/${solution_repo}@${git_tag}\` | \`${expected_commit_sha:0:8}\` | \`SHA256+HMAC SEALED\` | [Ver Diff](${compare_url}) | **R$ ${budget_brl}** | **\`${ttl}\` (${ttl_minutes} min)** | PASS |" >> "$GITHUB_STEP_SUMMARY"
+            rm -fv "${TMP_OUT}"
+          done

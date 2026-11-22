@@ -1,0 +1,95 @@
+name: Workload Lifecycle Override (EA/PE Decommission / TTL Change)
+
+# Pedidos gerados pelo agente ADK (request_workload_lifecycle_override) em lifecycle-requests/*.json.
+# Somente aprovadores listados em policies/governance-policy.json (lifecycle_override_approvers) são aceitos,
+# e cada pedido precisa do selo HMAC-SHA256 do agente (anti-drift / anti-forja).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "lifecycle-requests/*.json"
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: lifecycle-override-ernani-demo-argolis
+  cancel-in-progress: false
+
+jobs:
+  apply-lifecycle-override:
+    name: Apply EA/PE Lifecycle Override (Decommission / TTL)
+    if: github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'chore(lifecycle-receipt)')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+
+      - name: Detect pending lifecycle requests
+        id: detect
+        run: |
+          shopt -s nullglob
+          files=(lifecycle-requests/*.json)
+          echo "pending_count=${#files[@]}" >> "$GITHUB_OUTPUT"
+          echo "Pedidos pendentes: ${#files[@]}"
+
+      - name: Authenticate to Google Cloud (ernani-demo-argolis) via Keyless OIDC WIF
+        if: steps.detect.outputs.pending_count != '0'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: "projects/270170641495/locations/global/workloadIdentityPools/sdlc-github-approvals-pool/providers/github-oidc-approvals"
+          service_account: "sdlc-provisioner-sa@ernani-demo-argolis.iam.gserviceaccount.com"
+
+      - name: Set up Google Cloud SDK
+        if: steps.detect.outputs.pending_count != '0'
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Validate requester, HMAC seal and lease, then apply override
+        id: apply
+        if: steps.detect.outputs.pending_count != '0'
+        run: |
+          set -euo pipefail
+          GH_PAT=$(gcloud secrets versions access latest --secret="sdlc-github-org-pat" --project="ernani-demo-argolis")
+          echo "::add-mask::${GH_PAT}"
+          GH_PAT="${GH_PAT}" LIFECYCLE_HMAC_KEY="${GH_PAT}" python3 scripts/apply_lifecycle_override.py \
+            --github-output "$GITHUB_OUTPUT" \
+            --commit-message-file /tmp/lifecycle-commit-message.txt
+
+      - name: Commit lifecycle receipt (and teardown trigger) to main
+        if: always() && steps.detect.outputs.pending_count != '0'
+        run: |
+          set -euo pipefail
+          GH_PAT=$(gcloud secrets versions access latest --secret="sdlc-github-org-pat" --project="ernani-demo-argolis")
+          echo "::add-mask::${GH_PAT}"
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git config user.name "Ernani Joppert Pontes Martins"
+          git config user.email "114523+ernani@users.noreply.github.com"
+          for p in active-leases lifecycle-requests teardown-triggers; do
+            if [ -e "$p" ]; then git add -A -- "$p"; fi
+          done
+          if git diff --cached --quiet; then
+            echo "Nada a registrar."
+            exit 0
+          fi
+          if [ -s /tmp/lifecycle-commit-message.txt ]; then
+            MSG="$(cat /tmp/lifecycle-commit-message.txt)"
+          else
+            MSG="chore(lifecycle-receipt): pedidos processados com falha no runner [skip ci]"
+          fi
+          git commit -m "${MSG}"
+          git pull --rebase "https://x-access-token:${GH_PAT}@github.com/${GITHUB_REPOSITORY}.git" main
+          git push "https://x-access-token:${GH_PAT}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
+          {
+            echo ""
+            echo "Commit de recibo: \`${MSG}\`"
+            if [ -n "${{ steps.apply.outputs.decommissioned_slugs }}" ]; then
+              echo ""
+              echo "Teardown disparado para: **${{ steps.apply.outputs.decommissioned_slugs }}** (workflow *TTL & Budget Workload Auto-Teardown*)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

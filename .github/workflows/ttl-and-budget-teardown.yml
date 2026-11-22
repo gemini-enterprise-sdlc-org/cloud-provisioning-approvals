@@ -1,0 +1,156 @@
+name: TTL & Budget Workload Auto-Teardown (Workload-Only Destroy)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "teardown-triggers/**"
+  schedule:
+    # Rede de segurança FinOps (a cada hora): varre leases vencidos e para/remove a infraestrutura
+    # compartilhada que ficou sem nenhum workload (scripts/reap_idle_shared_backing.py). O caminho
+    # principal é o próprio teardown: o último workload removido já para/remove tudo nesta execução.
+    - cron: "41 * * * *"
+  workflow_dispatch:
+    inputs:
+      workload_slug:
+        description: "Slug opcional da aplicação a descomissionar (vazio = varre todas vencidas)"
+        required: false
+        default: ""
+        type: string
+      reason:
+        description: "Motivo auditável do descomissionamento"
+        required: false
+        default: "TTL_EXPIRED"
+        type: string
+      force_now:
+        description: "Forçar terraform destroy imediato desta aplicação mesmo antes do horário de expiração"
+        required: false
+        default: "false"
+        type: string
+      reap_idle_dry_run:
+        description: "FinOps: 'true' = execução só de relatório (o reaper apenas relata e o teardown de TTL NÃO roda nesta execução)"
+        required: false
+        default: "false"
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+permissions:
+  contents: write
+  id-token: write
+  actions: read
+
+concurrency:
+  group: ttl-teardown-ernani-demo-argolis
+  cancel-in-progress: false
+
+jobs:
+  teardown-expired-workloads:
+    name: Destroy Expired Workloads Only (Preserve Project & Git)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Check if any active lease requires teardown
+        id: check
+        env:
+          TARGET_SLUG: ${{ github.event.inputs.workload_slug || '' }}
+          FORCE_NOW: ${{ github.event.inputs.force_now || 'false' }}
+          REPORT_ONLY: ${{ github.event.inputs.reap_idle_dry_run || 'false' }}
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import datetime, glob, json, os, sys
+          if os.environ.get("REPORT_ONLY", "false").strip().lower() == "true":
+              print("Execução só de relatório (reap_idle_dry_run=true): teardown de TTL ignorado.", file=sys.stderr)
+              print("needs_teardown=false")
+              raise SystemExit(0)
+          now_epoch = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
+          target = os.environ.get("TARGET_SLUG", "").strip()
+          force = os.environ.get("FORCE_NOW", "false").strip().lower() == "true"
+          needs_run = False
+          for p in glob.glob("active-leases/*.json"):
+              d = json.load(open(p, encoding="utf-8"))
+              if str(d.get("status", "")).upper() != "ACTIVE":
+                  continue
+              slug = str(d.get("workload_slug", ""))
+              if target and slug != target:
+                  continue
+              exp = int(d.get("expires_at_epoch", 0))
+              spend = float(d.get("simulated_spend_brl", 0.0) or 0.0)
+              budget = float(d.get("budget_brl", 0.0) or 0.0)
+              if (force and target == slug) or (budget > 0 and spend >= budget) or (exp > 0 and now_epoch >= exp):
+                  needs_run = True
+                  break
+          print(f"needs_teardown={'true' if needs_run else 'false'}")
+          PY
+
+      # Autenticação em toda execução: o teardown só roda quando há lease vencido, mas o FinOps idle
+      # reaper (último passo) sempre precisa consultar o projeto.
+      - name: Authenticate to Google Cloud (ernani-demo-argolis) via Keyless OIDC WIF
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: "projects/270170641495/locations/global/workloadIdentityPools/sdlc-github-approvals-pool/providers/github-oidc-approvals"
+          service_account: "sdlc-provisioner-sa@ernani-demo-argolis.iam.gserviceaccount.com"
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Set up Terraform
+        if: steps.check.outputs.needs_teardown == 'true'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+          terraform_wrapper: false
+
+      - name: Execute Workload-Scoped Terraform Destroy
+        id: destroy
+        if: steps.check.outputs.needs_teardown == 'true'
+        run: |
+          python3 scripts/teardown_expired_workloads.py \
+            --workload-slug "${{ github.event.inputs.workload_slug || '' }}" \
+            --reason "${{ github.event.inputs.reason || '' }}" \
+            --force-now "${{ github.event.inputs.force_now || 'false' }}" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Commit Decommission Audit Trail to main
+        if: steps.check.outputs.needs_teardown == 'true' && steps.destroy.outputs.destroyed_count != '0'
+        run: |
+          set -euo pipefail
+          GH_PAT=$(gcloud secrets versions access latest --secret="sdlc-github-org-pat" --project="ernani-demo-argolis")
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git config user.name "Ernani Joppert Pontes Martins"
+          git config user.email "114523+ernani@users.noreply.github.com"
+          git rm -r -f --ignore-unmatch -- teardown-triggers/ || echo "::warning::Falha ao limpar teardown-triggers/"
+          git add -A active-leases/
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(ttl-teardown): destroy expired workloads (${{ steps.destroy.outputs.destroyed_slugs }}) [skip ci]"
+            git pull --rebase "https://x-access-token:${GH_PAT}@github.com/${GITHUB_REPOSITORY}.git" main
+            git push "https://x-access-token:${GH_PAT}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
+          fi
+
+      # FinOps (carência 0: o último teardown já zera a infraestrutura compartilhada nesta execução):
+      # Cloud SQL singleton sem nenhum workload é PARADO (activation-policy NEVER, nunca apagado: evita a
+      # reserva de nome de ~7 dias); Memorystore Redis ocioso é apagado; sem nenhum workload (0 leases em
+      # uso, 0 provisionamentos, 0 hostRules) o GCLB compartilhado inteiro (forwarding rules, proxies,
+      # URL maps, bucket de fallback, IP global, Certificate Map, certificado bootstrap) é removido.
+      # Qualquer dúvida = nada é feito (falha de consulta sai com código 3 para ficar visível). O próximo
+      # deploy religa/recria tudo automaticamente (scripts/provision_workload.sh + Terraform).
+      # Chaves sem mudar código (Settings > Variables): FINOPS_REAPER_ENABLED=false desliga este passo;
+      # FINOPS_REAPER_DRY_RUN=true força só relatório.
+      - name: FinOps — Stop/Remove Idle Shared Infra (DB servers, Redis, GCLB) when no workload uses them
+        id: reap
+        if: ${{ !cancelled() && steps.auth.outcome == 'success' && vars.FINOPS_REAPER_ENABLED != 'false' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REAP_DRY_RUN: ${{ (github.event.inputs.reap_idle_dry_run == 'true' || vars.FINOPS_REAPER_DRY_RUN == 'true') && 'true' || 'false' }}
+        run: |
+          python3 scripts/reap_idle_shared_backing.py \
+            --project "ernani-demo-argolis" \
+            --dry-run "${REAP_DRY_RUN}" \
+            --grace-minutes "0" \
+            --github-output "$GITHUB_OUTPUT"

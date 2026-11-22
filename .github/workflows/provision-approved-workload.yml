@@ -1,0 +1,151 @@
+name: Provision Approved Workload in ernani-demo-argolis (OIDC WIF)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "requests/*/approval-manifest.json"
+  workflow_dispatch:
+    inputs:
+      workload_slug:
+        description: "Slug da aplicação aprovada em requests/<workload_slug>/approval-manifest.json"
+        required: true
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: provision-ernani-demo-argolis-singleton-plane
+  cancel-in-progress: false
+
+jobs:
+  provision-workload:
+    name: Enforce Budget/TTL/Alerts + Shared DB Import + Deploy to ernani-demo-argolis
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve & Enforce Mandatory Budget, TTL, Alerts, Tag Lock & Anti-Drift Seal
+        id: policy
+        env:
+          INPUT_SLUG: ${{ github.event.inputs.workload_slug }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${INPUT_SLUG}" ]]; then
+            MANIFEST="requests/${INPUT_SLUG}/approval-manifest.json"
+          else
+            MANIFEST=$(git diff --name-only HEAD~1 HEAD -- 'requests/*/approval-manifest.json' | head -n 1 || true)
+          fi
+
+          if [[ -z "${MANIFEST}" || ! -f "${MANIFEST}" ]]; then
+            echo "allow_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Nenhum manifesto válido encontrado para deploy."
+            exit 0
+          fi
+
+          echo "manifest_path=${MANIFEST}" >> "$GITHUB_OUTPUT"
+          python3 scripts/enforce_provisioning_policy.py \
+            --mode pre-deploy \
+            --manifest "${MANIFEST}" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud (ernani-demo-argolis) via Keyless OIDC WIF
+        if: steps.policy.outputs.allow_deploy == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: "projects/270170641495/locations/global/workloadIdentityPools/sdlc-github-approvals-pool/providers/github-oidc-approvals"
+          service_account: "sdlc-provisioner-sa@ernani-demo-argolis.iam.gserviceaccount.com"
+
+      - name: Set up Google Cloud SDK
+        if: steps.policy.outputs.allow_deploy == 'true'
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Verify Cryptographic HMAC-SHA256 Manifest Seal against Secret Manager
+        if: steps.policy.outputs.allow_deploy == 'true'
+        run: |
+          set -euo pipefail
+          HMAC_KEY=$(gcloud secrets versions access latest --secret="sdlc-github-org-pat" --project="ernani-demo-argolis")
+          MANIFEST_HMAC_SECRET="${HMAC_KEY}" python3 scripts/enforce_provisioning_policy.py \
+            --mode pre-deploy \
+            --manifest "${{ steps.policy.outputs.manifest_path }}"
+
+      - name: Set up Terraform
+        if: steps.policy.outputs.allow_deploy == 'true'
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+          terraform_wrapper: false
+
+      - name: Reconcile Shared DB/Redis, Build Images, Apply Terraform & Schedule TTL
+        id: deploy
+        if: steps.policy.outputs.allow_deploy == 'true'
+        env:
+          WORKLOAD_SLUG: ${{ steps.policy.outputs.workload_slug }}
+          GITHUB_ORG: ${{ steps.policy.outputs.github_org }}
+          SOLUTION_REPO: ${{ steps.policy.outputs.solution_repo }}
+          GIT_TAG: ${{ steps.policy.outputs.git_tag }}
+          EXPECTED_COMMIT_SHA: ${{ steps.policy.outputs.expected_commit_sha }}
+          TARGET_GCP_PROJECT: ${{ steps.policy.outputs.target_gcp_project }}
+          BUDGET_BRL: ${{ steps.policy.outputs.budget_brl }}
+          TTL_LABEL: ${{ steps.policy.outputs.ttl }}
+          TTL_MINUTES: ${{ steps.policy.outputs.ttl_minutes }}
+          DATABASE_TYPE: ${{ steps.policy.outputs.database_type }}
+          ENABLE_REDIS: ${{ steps.policy.outputs.enable_redis }}
+          ALERT_EMAILS_CSV: ${{ steps.policy.outputs.alert_emails_csv }}
+          SLO_AVAILABILITY_GOAL: ${{ steps.policy.outputs.slo_availability_goal }}
+          SLO_LATENCY_P95_MS: ${{ steps.policy.outputs.slo_latency_p95_ms }}
+        run: |
+          chmod +x scripts/provision_workload.sh
+          ./scripts/provision_workload.sh
+
+      - name: Commit Active Lease Receipt to main
+        if: always() && steps.policy.outputs.allow_deploy == 'true'
+        run: |
+          set -euo pipefail
+          if [[ ! -f "active-leases/${{ steps.policy.outputs.workload_slug }}.json" ]]; then
+            echo "Nenhum lease gerado nesta execução; nada a registrar."
+            exit 0
+          fi
+          GH_PAT=$(gcloud secrets versions access latest --secret="sdlc-github-org-pat" --project="ernani-demo-argolis")
+          git config --local --unset-all http.https://github.com/.extraheader || true
+          git config user.name "Ernani Joppert Pontes Martins"
+          git config user.email "114523+ernani@users.noreply.github.com"
+          git add "active-leases/${{ steps.policy.outputs.workload_slug }}.json"
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(lease): activate ${{ steps.policy.outputs.workload_slug }}@${{ steps.policy.outputs.git_tag }} (db=${{ steps.policy.outputs.database_type }}, budget=R$ ${{ steps.policy.outputs.budget_brl }}, ttl=${{ steps.policy.outputs.ttl }}) [skip ci]"
+            git pull --rebase "https://x-access-token:${GH_PAT}@github.com/${GITHUB_REPOSITORY}.git" main
+            git push "https://x-access-token:${GH_PAT}@github.com/${GITHUB_REPOSITORY}.git" HEAD:main
+          fi
+
+      - name: Write Deployment Summary
+        if: always() && steps.policy.outputs.allow_deploy == 'true'
+        run: |
+          {
+            echo "## Provisionamento Aprovado Concluído em \`ernani-demo-argolis\`"
+            echo ""
+            echo "- **Workload**: \`${{ steps.policy.outputs.workload_slug }}\`"
+            echo "- **Repositório & Tag**: \`${{ steps.policy.outputs.github_org }}/${{ steps.policy.outputs.solution_repo }}@${{ steps.policy.outputs.git_tag }}\` (\`${{ steps.policy.outputs.expected_commit_sha }}\`)"
+            echo "- **Diff vs \`main\`**: [${{ steps.deploy.outputs.ahead_main }} ahead / ${{ steps.deploy.outputs.behind_main }} behind \`main\`](${{ steps.deploy.outputs.compare_url }})"
+            echo "- **Servidor Singleton Compartilhado (\`${{ steps.policy.outputs.database_type }}\`)**: \`${{ steps.deploy.outputs.shared_sql_instance || 'stateless' }}\`"
+            echo "- **Dashboard SRE, SLOs & Rateio FinOps**: [Abrir no Cloud Monitoring](${{ steps.deploy.outputs.dashboard_url }})"
+            echo "- **Canais de Alerta por E-mail**: \`${{ steps.policy.outputs.alert_emails_csv }}\`"
+            echo "- **Orçamento Máximo Forçado**: **R$ ${{ steps.policy.outputs.budget_brl }}**"
+            echo "- **HTTPS validado (certificado SSL confiável nos 3 hosts)**: \`${{ steps.deploy.outputs.https_verified || 'false' }}\` em \`${{ steps.deploy.outputs.https_verified_at_utc || 'n/a' }}\` (${{ steps.deploy.outputs.ssl_wait_minutes || '?' }} min após o deploy)"
+            echo "- **Tempo de Vida (TTL) Forçado**: **\`${{ steps.policy.outputs.ttl }}\` (${{ steps.policy.outputs.ttl_minutes }} minutos), contados a partir da validação HTTPS** — iniciado em \`${{ steps.deploy.outputs.ttl_started_at_utc }}\`, autodestruição programada para \`${{ steps.deploy.outputs.expires_at_utc }}\`"
+            echo "- **URL Frontend (HTTPS)**: ${{ steps.deploy.outputs.web_url }}"
+            echo "- **URL API (HTTPS)**: ${{ steps.deploy.outputs.api_url }}"
+          } >> "$GITHUB_STEP_SUMMARY"
