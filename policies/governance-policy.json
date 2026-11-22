@@ -1,17 +1,30 @@
 {
-  "policy_version": "1.2.0",
+  "policy_version": "1.2.1",
+  "allowed_github_org": "gemini-enterprise-sdlc-org",
   "allowed_github_orgs": [
     "gemini-enterprise-sdlc-org"
+  ],
+  "allowed_gcp_projects": [
+    "ernani-demo-argolis"
   ],
   "allowed_target_gcp_projects": [
     "ernani-demo-argolis"
   ],
+  "provisioner_service_account": "sdlc-provisioner-sa@ernani-demo-argolis.iam.gserviceaccount.com",
   "required_provisioner_service_account": "sdlc-provisioner-sa@ernani-demo-argolis.iam.gserviceaccount.com",
+  "required_git_tag": "GCP_DEPLOYED_VERSION",
   "required_deployed_git_tag": "GCP_DEPLOYED_VERSION",
+  "reserved_protected_repos": [
+    "cloud-provisioning-approvals",
+    "sdlc-platform-skills",
+    "sdlc-platform-template",
+    "governed-agentic-software-factory"
+  ],
   "reserved_governance_repos": [
     "cloud-provisioning-approvals",
     "sdlc-platform-skills",
-    "sdlc-platform-template"
+    "sdlc-platform-template",
+    "governed-agentic-software-factory"
   ],
   "lifecycle_override_approvers": [
     "admin@ernanimartins.altostrat.com",
@@ -34,9 +47,11 @@
   "require_alert_emails": true,
   "default_demo_ttl": "1h",
   "default_sandbox_ttl": "15d",
-  "min_ttl_minutes": 15,
+  "min_ttl_minutes": 5,
+  "max_ttl_minutes": 129600,
   "max_ttl_days": 90,
   "min_budget_brl": 10.0,
+  "max_sandbox_budget_brl": 10000.0,
   "max_budget_brl": 10000.0,
   "teardown_mode": "terraform_destroy_workload_only",
   "preserve_gcp_project": true,
