@@ -1,7 +1,7 @@
 {
   "workload_slug": "nodejs-todo-board",
   "short_slug": "nodejs-todo-board",
-  "status": "ACTIVE",
+  "status": "DECOMMISSIONED",
   "target_gcp_project": "ernani-demo-argolis",
   "region": "southamerica-east1",
   "github_org": "gemini-enterprise-sdlc-org",
@@ -19,7 +19,7 @@
   "enable_redis": false,
   "alert_emails": "admin@ernanimartins.altostrat.com",
   "monitoring_dashboard_url": "https://console.cloud.google.com/monitoring/dashboards/builder/projects/270170641495/dashboards/9459b82c-b236-4d19-ad55-676009b0cf57?project=ernani-demo-argolis",
-  "budget_brl": 150.00,
+  "budget_brl": 150.0,
   "ttl": "5m",
   "ttl_minutes": 5,
   "deployed_at_utc": "2026-11-23T19:11:20Z",
@@ -33,5 +33,7 @@
   "bff_url": "https://nodejs-todo-board-backend.8.232.85.186.nip.io",
   "api_url": "https://nodejs-todo-board-api.8.232.85.186.nip.io",
   "teardown_mode": "terraform_destroy_workload_only",
-  "terraform_state_uri": "gs://ernani-demo-argolis-sdlc-tfstate/workloads/nodejs-todo-board"
+  "terraform_state_uri": "gs://ernani-demo-argolis-sdlc-tfstate/workloads/nodejs-todo-board",
+  "decommissioned_at_utc": "2026-11-23T19:27:32Z",
+  "decommissioned_reason": "TTL_EXPIRED (5m)"
 }
