@@ -6,8 +6,8 @@
   "solution_repo": "php-bulletin-board",
   "git_branch": "gcp/sandbox",
   "git_tag": "GCP_DEPLOYED_VERSION",
-  "expected_commit_sha": "4a4932a110dee7fee27b9f0c71c18a8bbd32b6e3",
-  "source_commit_sha": "4a4932a110dee7fee27b9f0c71c18a8bbd32b6e3",
+  "expected_commit_sha": "f6ac861553525073f98549d3f4454279aa2e6d21",
+  "source_commit_sha": "f6ac861553525073f98549d3f4454279aa2e6d21",
   "commits_ahead_of_main": 1,
   "commits_behind_main": 0,
   "compare_against_main_url": "https://github.com/gemini-enterprise-sdlc-org/php-bulletin-board/compare/main...GCP_DEPLOYED_VERSION",
@@ -142,7 +142,7 @@
   "sarif_security_verdict": "PASS",
   "approval_status": "APPROVED_ON_MERGE",
   "requested_by": "admin@ernanimartins.altostrat.com",
-  "requested_at_utc": "2026-11-23T19:42:57Z",
+  "requested_at_utc": "2026-11-23T20:36:26Z",
   "business_justification": "Argolis Polyglot E2E Smoke Validation (php-bulletin-board, TTL 5m)",
   "platform_standard_exception_justification": "",
   "agent_llm_models": {
@@ -265,8 +265,8 @@
       "teardown_mode",
       "sarif_security_verdict"
     ],
-    "canonical_payload_sha256": "edc8cb5ae4dd0dc6604b44e2b93a05e523ba380087b1a2c85235e8726a19c8a8",
-    "companion_docs_sha256": "8c73966bbc527aea5eacb4a95ebe31f6076876408d1d7309ca52098bb6205c83",
-    "hmac_sha256_signature": "1b05efa09d1bf47136eb631b0272bab2ea29b3770c0edf05c53ceebb7f268dbf"
+    "canonical_payload_sha256": "1fa4f9c95550d6087100054c2dd2fdd12025f61f940c5c6adfe1996369a318dd",
+    "companion_docs_sha256": "a06ae6076d648551bae0252f26c2d7a36ca996318ae6788bcea1b038ac0b057f",
+    "hmac_sha256_signature": "75ae65e62a29c7cd46efd8b4de620b5d7e55e3592f96c6d51ab5f97c0843aa94"
   }
 }
