@@ -6,8 +6,8 @@
   "solution_repo": "dotnet-react-calc",
   "git_branch": "gcp/sandbox",
   "git_tag": "GCP_DEPLOYED_VERSION",
-  "expected_commit_sha": "ddad44ee7c064b2ad41e1bee7f08421af477aa96",
-  "source_commit_sha": "ddad44ee7c064b2ad41e1bee7f08421af477aa96",
+  "expected_commit_sha": "43f7a8b6779b47ea75735931ce8b151a06aeea6c",
+  "source_commit_sha": "43f7a8b6779b47ea75735931ce8b151a06aeea6c",
   "commits_ahead_of_main": 1,
   "commits_behind_main": 0,
   "compare_against_main_url": "https://github.com/gemini-enterprise-sdlc-org/dotnet-react-calc/compare/main...GCP_DEPLOYED_VERSION",
@@ -142,7 +142,7 @@
   "sarif_security_verdict": "PASS",
   "approval_status": "APPROVED_ON_MERGE",
   "requested_by": "admin@ernanimartins.altostrat.com",
-  "requested_at_utc": "2026-11-23T19:27:36Z",
+  "requested_at_utc": "2026-11-23T19:41:40Z",
   "business_justification": "Argolis Polyglot E2E Smoke Validation (dotnet-react-calc, TTL 5m)",
   "platform_standard_exception_justification": "",
   "agent_llm_models": {
@@ -265,8 +265,8 @@
       "teardown_mode",
       "sarif_security_verdict"
     ],
-    "canonical_payload_sha256": "49177339bdd14ec8401e9a5e64402806ad60d831b19a1379012ae029806b3908",
-    "companion_docs_sha256": "00faedba9fc19e8a60ac79453d4680b92c5df0804f93af65165083de1f8755a2",
-    "hmac_sha256_signature": "984257c3a38a811f2da83850a7c580c7a4a4ec549cf2896047922df70b9179b2"
+    "canonical_payload_sha256": "366a3a5e9d3bfa92a97f554b75721a74499e8af40c52f34181699af668180f61",
+    "companion_docs_sha256": "bc36b52d0fb1955c546a7bac4d201f4e465ef55d3af4ebf2d574b45a042123d3",
+    "hmac_sha256_signature": "eed9ad0f55ee84d004668ab8740bd11d96da2857d8ea00af742055106433c696"
   }
 }
