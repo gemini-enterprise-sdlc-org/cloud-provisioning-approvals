@@ -12,7 +12,7 @@
 | **Workload Slug** | `php-bulletin-board` | Identificador isolado de GCS SPA, Cloud Run v2, Pub/Sub, DB lógico e TF State |
 | **Repositório da Aplicação** | `gemini-enterprise-sdlc-org/php-bulletin-board` | Branch `main` preservada 100% intocada |
 | **Branch & Tag de Deploy** | `gcp/sandbox` / **`GCP_DEPLOYED_VERSION`** | Checkout estrito na tag `GCP_DEPLOYED_VERSION` |
-| **Trava SHA Anti-Tampering** | `871efa628c8976b7f601e70a147777aa1d4b3930` | Abortará o deploy se `GCP_DEPLOYED_VERSION` divergir deste SHA |
+| **Trava SHA Anti-Tampering** | `4a4932a110dee7fee27b9f0c71c18a8bbd32b6e3` | Abortará o deploy se `GCP_DEPLOYED_VERSION` divergir deste SHA |
 | **Diff vs `main` (`ahead/behind`)** | [`1 ahead` / `0 behind` `main`](https://github.com/gemini-enterprise-sdlc-org/php-bulletin-board/compare/main...GCP_DEPLOYED_VERSION) | Visibilidade integral das alterações do Agente contra `main` |
 | **GCLB HTTPS + Redirect 301 (`.nip.io`)** | `https://php-bulletin-board-frontend.<gclb_ip>.nip.io` (SPA GCS BackendBucket, zero container) / `https://php-bulletin-board-backend.<gclb_ip>.nip.io` (BFF) / `https://php-bulletin-board-api.<gclb_ip>.nip.io` (API) | Redirect HTTP->HTTPS `301` + Certificado SSL Certificate Manager + Cloud Armor WAF |
 | **Pub/Sub Isolado & Serverless** | `php-bulletin-board-events`, `php-bulletin-board-dlq` | Tópicos + DLQ isolados por projeto + suporte a Cloud Run Functions v2 |
@@ -24,7 +24,7 @@
 | **Tempo de Vida (`ttl`)** | **`5m` (5 minutos)** | Autodestruição automática dos workloads ao expirar o relógio |
 | **Modo de Descomissionamento** | `terraform_destroy_workload_only` | **Remove apenas os workloads e rotas GCLB da app**; preserva projeto `ernani-demo-argolis`, GCLB/DB singletons, `main` e repositório Git |
 | **Veredito Gatekeeper SARIF** | `PASS` | OWASP Top 10 + 5 Regras de Segurança IA/LGPD |
-| **Solicitante** | `admin@ernanimartins.altostrat.com` | Registrado em `2026-11-23T18:45:20Z` |
+| **Solicitante** | `admin@ernanimartins.altostrat.com` | Registrado em `2026-11-23T19:42:57Z` |
 
 ## 2. Justificativa Executiva / Negócio
 
