@@ -1,0 +1,272 @@
+{
+  "schema_version": "1.3.0",
+  "workload_slug": "php-bulletin-board",
+  "request_type": "greenfield_new_project",
+  "github_org": "gemini-enterprise-sdlc-org",
+  "solution_repo": "php-bulletin-board",
+  "git_branch": "gcp/sandbox",
+  "git_tag": "GCP_DEPLOYED_VERSION",
+  "expected_commit_sha": "4eac4328ff688cb08453e6fabce63b155bc31dd1",
+  "source_commit_sha": "4eac4328ff688cb08453e6fabce63b155bc31dd1",
+  "commits_ahead_of_main": 1,
+  "commits_behind_main": 0,
+  "compare_against_main_url": "https://github.com/gemini-enterprise-sdlc-org/php-bulletin-board/compare/main...GCP_DEPLOYED_VERSION",
+  "target_gcp_project": "ernani-demo-argolis",
+  "region": "southamerica-east1",
+  "provisioner_service_account": "sdlc-provisioner-sa@ernani-demo-argolis.iam.gserviceaccount.com",
+  "budget_brl": 150.0,
+  "ttl": "5m",
+  "ttl_minutes": 5,
+  "gclb_nip_io_edge_contract": {
+    "project_prefix": "php-bulletin-board",
+    "gclb_load_balancing_scheme": "EXTERNAL_MANAGED",
+    "http_to_https_redirect": "301 MOVED_PERMANENTLY_DEFAULT (Port 80 -> Port 443)",
+    "ssl_certificate_strategy": "Google Certificate Manager (Load Balancer Authorization) para os 3 subdomínios .nip.io + Certificado Bootstrap TLS Primary Fallback (zero reset de handshake durante PROVISIONING)",
+    "domains": {
+      "frontend": "https://php-bulletin-board-frontend.<gclb_ip>.nip.io",
+      "backend_bff": "https://php-bulletin-board-backend.<gclb_ip>.nip.io",
+      "api": "https://php-bulletin-board-api.<gclb_ip>.nip.io"
+    },
+    "tier_backends": {
+      "frontend_spa": {
+        "mode": "STATIC_SPA_GCS_BACKEND_BUCKET_NO_CONTAINER",
+        "gcs_bucket": "sdlc-spa-php-bulletin-board-270170641495",
+        "website_support": {
+          "main_page_suffix": "index.html",
+          "not_found_page": "index.html"
+        },
+        "backend_bucket": "php-bulletin-board-spa-be",
+        "cloud_cdn_enabled": true,
+        "same_origin_api_l7_route": "/api/* -> BackendService BFF/API no URL Map do GCLB"
+      },
+      "backend_bff": {
+        "mode": "ROUTED_TO_API_CLOUD_RUN_V2_BACKEND_SERVICE",
+        "service_name": "php-bulletin-board-api",
+        "backend_service": "php-bulletin-board-api-be",
+        "ingress": "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER",
+        "cloud_armor_waf": "php-bulletin-board-waf"
+      },
+      "api": {
+        "mode": "CLOUD_RUN_V2_SERVICE",
+        "service_name": "php-bulletin-board-api",
+        "backend_service": "php-bulletin-board-api-be",
+        "ingress": "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER",
+        "cloud_armor_waf": "php-bulletin-board-waf"
+      },
+      "serverless_functions_v2": {
+        "enabled": false,
+        "function_name": null,
+        "runtime": "Cloud Run Functions v2 (GEN_2 + Eventarc Pub/Sub & GCS Object Finalize)",
+        "monitored_uploads_bucket": "sdlc-uploads-php-bulletin-board-270170641495",
+        "monitored_prefix": "incoming/"
+      },
+      "app_storage_uploads": {
+        "gcs_bucket": "sdlc-uploads-php-bulletin-board-270170641495",
+        "access_mode": "PRIVATE (public_access_prevention = enforced, UBLA = true)",
+        "upload_patterns": [
+          "V4 Signed URLs (PUT/GET 15m via IAM signBlob sem chave JSON)",
+          "Cloud Run v2 Native GCS FUSE Volume Mount (/mnt/uploads) para apps legadas"
+        ],
+        "file_watch_trigger": "OBJECT_FINALIZE (prefix 'incoming/') -> Pub/Sub 'php-bulletin-board-events' (+ DLQ 'php-bulletin-board-dlq') -> Cloud Run Function v2 'php-bulletin-board-fn'"
+      },
+      "pubsub_isolated_topics": [
+        "php-bulletin-board-events",
+        "php-bulletin-board-dlq"
+      ],
+      "gke_future_roadmap": {
+        "enabled_now": false,
+        "cluster_name": "sdlc-shared-gke-autopilot",
+        "mode": "GKE Autopilot Shared Cluster + ComputeClass / Taint Node Isolation per Project",
+        "anti_drift_maintenance": "Release Channel REGULAR + Recurring Maintenance Window (Ter-Qui 02:00-06:00 BRT)"
+      }
+    }
+  },
+  "database_type": "postgresql",
+  "shared_sql_instance": "sdlc-shared-pgsql",
+  "volumetric_sql_sizing": {
+    "expected_concurrent_apps": 3,
+    "tier": "db-custom-2-7680",
+    "vcpu": 2,
+    "memory_mb": 7680,
+    "memory_gb": 7.5,
+    "disk_size_gb": 20,
+    "max_connections": 300
+  },
+  "enable_redis": false,
+  "shared_redis_isolation": null,
+  "shared_backing_discovery": {
+    "sql_instance_name": "sdlc-shared-pgsql",
+    "sql_already_exists": null,
+    "sql_state": "UNKNOWN_OFFLINE",
+    "sql_activation_policy": "",
+    "sql_reconciliation_action": "DYNAMIC_CHECK_AND_IMPORT_AT_APPLY_TIME",
+    "sql_idle_policy_note": "",
+    "redis_instance_name": "",
+    "redis_already_exists": null,
+    "redis_state": "NOT_REQUESTED",
+    "redis_idle_policy_note": ""
+  },
+  "finops_rateio_contract": {
+    "policy": "SINGLETON_ENGINE_PER_PROJECT_WITH_PROPORTIONAL_RATEIO",
+    "database_type": "postgresql",
+    "shared_sql_instance": "sdlc-shared-pgsql",
+    "dedicated_logical_database": "db_php_bulletin_board",
+    "formula": "Custo_App_i = (Custo_Servidor_CPU_RAM * Compute_Share_i) + (Custo_Disco_IOPS * Storage_Share_i)",
+    "telemetry_sources": "pg_stat_database (xact_commit, tup_returned, tup_fetched, tup_inserted, tup_updated, blks_read) + pg_database_size('db_<slug>') + Cloud SQL Query Insights (application_name='<slug>')",
+    "audit_rateio_sql": "SELECT d.datname AS database_name, pg_database_size(d.datname) AS storage_bytes, ROUND(100.0 * pg_database_size(d.datname) / NULLIF(SUM(pg_database_size(d.datname)) OVER (), 0), 2) AS storage_share_pct, (s.xact_commit + s.xact_rollback + s.tup_returned + s.tup_fetched + s.tup_inserted + s.tup_updated + s.blks_read) AS activity_units, ROUND(100.0 * (s.xact_commit + s.xact_rollback + s.tup_returned + s.tup_fetched + s.tup_inserted + s.tup_updated + s.blks_read) / NULLIF(SUM(s.xact_commit + s.xact_rollback + s.tup_returned + s.tup_fetched + s.tup_inserted + s.tup_updated + s.blks_read) OVER (), 0), 2) AS compute_share_pct FROM pg_database d JOIN pg_stat_database s ON d.oid = s.datid WHERE d.datname LIKE 'db_%' ORDER BY storage_bytes DESC;",
+    "redis_sharing": null,
+    "idle_policy": {
+      "trigger": "Nenhum workload usando o servidor: nenhum lease ACTIVE/PROVISIONING, nenhum provisionamento em andamento, somente databases de sistema, nenhum serviço Cloud Run referenciando a instância e carência pós-descomissionamento cumprida (qualquer dúvida = nada é alterado).",
+      "cloud_sql": "PARADO (activation-policy NEVER): sem cobrança de vCPU/RAM (restam só disco e IP), configuração, usuários e segredos preservados. Nunca apagado: o nome de uma instância Cloud SQL apagada fica reservado por até ~7 dias e impediria o próximo deploy de recriar o singleton.",
+      "memorystore_redis": "APAGADO somente quando nenhum workload estiver ativo (Memorystore não pode ser parado); um deploy espera uma remoção em andamento terminar e o Terraform recria o singleton no próximo deploy que pedir Redis.",
+      "shared_gclb": "APAGADO por completo quando não há nenhum workload (0 leases em uso, 0 deploys em andamento e 0 hostRules no URL map HTTPS): forwarding rules, proxies, URL maps, backend bucket + bucket de fallback, IP global estático, Certificate Map e certificado bootstrap (12 recursos), em ordem reversa de dependência — nenhuma forwarding rule nem IP estático parado cobrando. O próximo deploy recria os 12 recursos (IP novo: os hosts <ip>.nip.io mudam).",
+      "auto_resume": "O próximo deploy religa automaticamente o servidor parado (activation-policy ALWAYS) e espera RUNNABLE antes do terraform apply (alguns minutos, em paralelo ao Cloud Build); espera uma remoção de Redis em andamento, conclui uma remoção parcial do GCLB e o Terraform recria Redis e GCLB.",
+      "trigger_timing": "Imediato: o último teardown de workload já para/remove a infraestrutura compartilhada na mesma execução (carência 0); um cron horário é a rede de segurança.",
+      "summary": "Rateio só existe enquanto há workloads: sem nenhum workload a infraestrutura compartilhada deixa de cobrar (Cloud SQL parado, Redis e GCLB/IP global apagados) e volta sozinha no próximo deploy."
+    }
+  },
+  "observability_sre": {
+    "alert_emails": [
+      "admin@ernanimartins.altostrat.com"
+    ],
+    "slo_availability_goal": 0.995,
+    "slo_latency_p95_ms": 1500,
+    "dashboard_provisioned_by_terraform": true,
+    "alerts_provisioned_by_terraform": [
+      "http_5xx_error_spike",
+      "high_p95_latency",
+      "shared_db_cpu_saturation"
+    ]
+  },
+  "teardown_mode": "terraform_destroy_workload_only",
+  "sarif_security_verdict": "PASS",
+  "approval_status": "APPROVED_ON_MERGE",
+  "requested_by": "admin@ernanimartins.altostrat.com",
+  "requested_at_utc": "2026-11-23T18:22:02Z",
+  "business_justification": "Argolis Polyglot E2E Smoke Validation (php-bulletin-board, TTL 5m)",
+  "platform_standard_exception_justification": "",
+  "agent_llm_models": {
+    "orchestrator_llm_model": "gemini-4-neon",
+    "synthesis_llm_model": "gemini-4-neon",
+    "diagram_image_model": "gemini-3.1-flash-image (fallback: gemini-2.5-flash-image)",
+    "calibrated_decisions_model": "gemini-decision-1",
+    "vertex_location": "global",
+    "agents": [
+      {
+        "agent_name": "Orquestrador Central EA/PE",
+        "origin_role": "Coordenação Zero-Trust & Roteamento A2A",
+        "subagent_id": "sdlc_factory",
+        "llm_model": "gemini-4-neon",
+        "auxiliary_engine": "RBAC Fail-Closed + Callback Multimodal de Anexos"
+      },
+      {
+        "agent_name": "Agente de Requisitos",
+        "origin_role": "Descoberta e requisitos",
+        "subagent_id": "prd_discovery_agent",
+        "llm_model": "gemini-4-neon",
+        "auxiliary_engine": "Síntese estruturada PRD/Spec: gemini-4-neon"
+      },
+      {
+        "agent_name": "Agente de Arquitetura",
+        "origin_role": "Arquiteto GCP",
+        "subagent_id": "gcp_fabric_architect_agent",
+        "llm_model": "gemini-4-neon",
+        "auxiliary_engine": "Diagramas 4K: gemini-3.1-flash-image (fallback: gemini-2.5-flash-image)"
+      },
+      {
+        "agent_name": "Agente de Compliance",
+        "origin_role": "Raio-X dos sistemas atuais",
+        "subagent_id": "github_iac_publisher_agent",
+        "llm_model": "gemini-4-neon",
+        "auxiliary_engine": "Calibrated Decision Gate: gemini-decision-1"
+      },
+      {
+        "agent_name": "Agente de Implementação",
+        "origin_role": "Fábrica de aplicações",
+        "subagent_id": "antigravity_fullstack_factory_agent",
+        "llm_model": "gemini-4-neon",
+        "auxiliary_engine": "Síntese Full-Stack & Evolução Day-2: gemini-4-neon"
+      },
+      {
+        "agent_name": "Agente de Segurança",
+        "origin_role": "Inspetor de segurança",
+        "subagent_id": "security_anti_slop_agent",
+        "llm_model": "gemini-4-neon",
+        "auxiliary_engine": "Scanners determinísticos AST/SARIF (Semgrep OSS + Trivy OSS)"
+      }
+    ],
+    "by_key": {
+      "sdlc_factory": {
+        "agent_name": "Orquestrador Central EA/PE",
+        "origin_role": "Coordenação Zero-Trust & Roteamento A2A",
+        "subagent_id": "sdlc_factory",
+        "llm_model": "gemini-4-neon",
+        "auxiliary_engine": "RBAC Fail-Closed + Callback Multimodal de Anexos"
+      },
+      "prd_discovery_agent": {
+        "agent_name": "Agente de Requisitos",
+        "origin_role": "Descoberta e requisitos",
+        "subagent_id": "prd_discovery_agent",
+        "llm_model": "gemini-4-neon",
+        "auxiliary_engine": "Síntese estruturada PRD/Spec: gemini-4-neon"
+      },
+      "gcp_fabric_architect_agent": {
+        "agent_name": "Agente de Arquitetura",
+        "origin_role": "Arquiteto GCP",
+        "subagent_id": "gcp_fabric_architect_agent",
+        "llm_model": "gemini-4-neon",
+        "auxiliary_engine": "Diagramas 4K: gemini-3.1-flash-image (fallback: gemini-2.5-flash-image)"
+      },
+      "brownfield_compliance_audit": {
+        "agent_name": "Agente de Compliance",
+        "origin_role": "Raio-X dos sistemas atuais",
+        "subagent_id": "github_iac_publisher_agent",
+        "llm_model": "gemini-4-neon",
+        "auxiliary_engine": "Calibrated Decision Gate: gemini-decision-1"
+      },
+      "antigravity_fullstack_factory_agent": {
+        "agent_name": "Agente de Implementação",
+        "origin_role": "Fábrica de aplicações",
+        "subagent_id": "antigravity_fullstack_factory_agent",
+        "llm_model": "gemini-4-neon",
+        "auxiliary_engine": "Síntese Full-Stack & Evolução Day-2: gemini-4-neon"
+      },
+      "security_anti_slop_agent": {
+        "agent_name": "Agente de Segurança",
+        "origin_role": "Inspetor de segurança",
+        "subagent_id": "security_anti_slop_agent",
+        "llm_model": "gemini-4-neon",
+        "auxiliary_engine": "Scanners determinísticos AST/SARIF (Semgrep OSS + Trivy OSS)"
+      }
+    }
+  },
+  "integrity_seal": {
+    "version": "1.0",
+    "algorithm": "HMAC-SHA256",
+    "sealed_by": "sdlc-adk-agent-engine",
+    "canonical_fields": [
+      "schema_version",
+      "workload_slug",
+      "request_type",
+      "github_org",
+      "solution_repo",
+      "git_branch",
+      "git_tag",
+      "expected_commit_sha",
+      "target_gcp_project",
+      "region",
+      "provisioner_service_account",
+      "budget_brl",
+      "ttl",
+      "ttl_minutes",
+      "database_type",
+      "enable_redis",
+      "observability_sre",
+      "teardown_mode",
+      "sarif_security_verdict"
+    ],
+    "canonical_payload_sha256": "e347bbd081a46595b629484c1a4325c4d16712931aae5d3bc2fac09a23defeb4",
+    "companion_docs_sha256": "7ae71346e46a4d06affd8cd38143dbcf19536cb0d1a7c965a70b94a844f38d96",
+    "hmac_sha256_signature": "7a2508099b3ab0e09566a6ca4ded5a68f5571753a9eb8a9b5cae7a9a38f655a1"
+  }
+}
