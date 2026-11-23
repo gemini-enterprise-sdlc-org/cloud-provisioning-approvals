@@ -12,7 +12,7 @@
 | **Workload Slug** | `dotnet-react-calc` | Identificador isolado de GCS SPA, Cloud Run v2, Pub/Sub, DB lógico e TF State |
 | **Repositório da Aplicação** | `gemini-enterprise-sdlc-org/dotnet-react-calc` | Branch `main` preservada 100% intocada |
 | **Branch & Tag de Deploy** | `gcp/sandbox` / **`GCP_DEPLOYED_VERSION`** | Checkout estrito na tag `GCP_DEPLOYED_VERSION` |
-| **Trava SHA Anti-Tampering** | `eae97d7fc1281acb1809dcacf0108249528b4a4d` | Abortará o deploy se `GCP_DEPLOYED_VERSION` divergir deste SHA |
+| **Trava SHA Anti-Tampering** | `ddad44ee7c064b2ad41e1bee7f08421af477aa96` | Abortará o deploy se `GCP_DEPLOYED_VERSION` divergir deste SHA |
 | **Diff vs `main` (`ahead/behind`)** | [`1 ahead` / `0 behind` `main`](https://github.com/gemini-enterprise-sdlc-org/dotnet-react-calc/compare/main...GCP_DEPLOYED_VERSION) | Visibilidade integral das alterações do Agente contra `main` |
 | **GCLB HTTPS + Redirect 301 (`.nip.io`)** | `https://dotnet-react-calc-frontend.<gclb_ip>.nip.io` (SPA GCS BackendBucket, zero container) / `https://dotnet-react-calc-backend.<gclb_ip>.nip.io` (BFF) / `https://dotnet-react-calc-api.<gclb_ip>.nip.io` (API) | Redirect HTTP->HTTPS `301` + Certificado SSL Certificate Manager + Cloud Armor WAF |
 | **Pub/Sub Isolado & Serverless** | `dotnet-react-calc-events`, `dotnet-react-calc-dlq` | Tópicos + DLQ isolados por projeto + suporte a Cloud Run Functions v2 |
@@ -24,7 +24,7 @@
 | **Tempo de Vida (`ttl`)** | **`5m` (5 minutos)** | Autodestruição automática dos workloads ao expirar o relógio |
 | **Modo de Descomissionamento** | `terraform_destroy_workload_only` | **Remove apenas os workloads e rotas GCLB da app**; preserva projeto `ernani-demo-argolis`, GCLB/DB singletons, `main` e repositório Git |
 | **Veredito Gatekeeper SARIF** | `PASS` | OWASP Top 10 + 5 Regras de Segurança IA/LGPD |
-| **Solicitante** | `admin@ernanimartins.altostrat.com` | Registrado em `2026-11-23T18:47:46Z` |
+| **Solicitante** | `admin@ernanimartins.altostrat.com` | Registrado em `2026-11-23T19:27:36Z` |
 
 ## 2. Justificativa Executiva / Negócio
 
