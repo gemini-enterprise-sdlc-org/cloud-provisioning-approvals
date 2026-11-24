@@ -26,6 +26,52 @@ import tempfile
 SHARED_SQL_ENGINES = {"postgresql", "mysql", "sqlserver"}
 
 
+_SAFE_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
+DEFAULT_ARTIFACTS_BUCKET = "ernani-demo-argolis-sdlc-artifacts"
+
+
+def cleanup_canvas_and_staging_artifacts(
+    slug: str,
+    project_id: str,
+    artifacts_bucket: str = DEFAULT_ARTIFACTS_BUCKET,
+) -> list[str]:
+    """Deletes expired workload Canvas HTML, 4K architecture PNG, and `/ui-staging/<slug>/` from GCS.
+
+    Best-effort & strictly scoped to exact validated `<slug>` paths so sibling workloads are never touched.
+    """
+    clean_slug = (slug or "").strip().lower()
+    clean_bucket = (artifacts_bucket or "").strip().removeprefix("gs://").strip("/")
+    if not clean_bucket or not _SAFE_SLUG_RE.match(clean_slug):
+        return []
+    if not shutil.which("gcloud"):
+        return []
+
+    targets: list[tuple[str, bool]] = [
+        (f"gs://{clean_bucket}/canvas/{clean_slug}.html", False),
+        (f"gs://{clean_bucket}/diagrams/{clean_slug}-4k.png", False),
+        (f"gs://{clean_bucket}/ui-staging/{clean_slug}/", True),
+    ]
+    cleaned: list[str] = []
+    for uri, recursive in targets:
+        cmd = ["gcloud", "storage", "rm"]
+        if recursive:
+            cmd.append("--recursive")
+        cmd.extend([uri, f"--project={project_id}", "--quiet"])
+        proc = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        stderr_l = (proc.stderr or "").lower()
+        if proc.returncode == 0:
+            cleaned.append(uri)
+            print(f"[TEARDOWN] Artefato de Canvas/Staging removido: {uri}")
+        elif "matched no objects" in stderr_l or "not found" in stderr_l or "404" in stderr_l:
+            continue
+        else:
+            print(
+                f"::warning::[TEARDOWN] Falha ao remover artefato '{uri}': "
+                f"{(proc.stderr or proc.stdout or '').strip()[:240]}"
+            )
+    return cleaned
+
+
 def app_database_name(slug: str) -> str:
     """Mirrors the generator naming (`db_<tf_id>`) used by `google_sql_database.app_db`."""
     tf_id = re.sub(r"[^a-z0-9_]", "_", slug.strip().lower())[:24].rstrip("_")
@@ -229,8 +275,17 @@ def destroy_workload(
             capture_output=True,
         )
 
+    artifacts_bucket = str(lease.get("artifacts_bucket") or DEFAULT_ARTIFACTS_BUCKET).strip()
+    artifacts_cleaned = cleanup_canvas_and_staging_artifacts(
+        slug=slug,
+        project_id=project_id,
+        artifacts_bucket=artifacts_bucket,
+    )
+
     now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     lease["status"] = "DECOMMISSIONED"
+    if artifacts_cleaned:
+        lease["artifacts_cleaned"] = artifacts_cleaned
     lease["decommissioned_at_utc"] = now_utc
     lease["decommissioned_reason"] = reason
     lease_path.write_text(json.dumps(lease, indent=2) + "\n", encoding="utf-8")
