@@ -1,7 +1,7 @@
 {
   "workload_slug": "keep-kanban-studio",
   "short_slug": "keep-kanban-studio",
-  "status": "ACTIVE",
+  "status": "DECOMMISSIONED",
   "target_gcp_project": "ernani-demo-argolis",
   "region": "southamerica-east1",
   "github_org": "gemini-enterprise-sdlc-org",
@@ -19,7 +19,7 @@
   "enable_redis": false,
   "alert_emails": "admin@ernanimartins.altostrat.com",
   "monitoring_dashboard_url": "https://console.cloud.google.com/monitoring/dashboards/builder/projects/270170641495/dashboards/5d98c0b2-f43f-49c6-93c9-e0508b18cddc?project=ernani-demo-argolis",
-  "budget_brl": 150.00,
+  "budget_brl": 150.0,
   "ttl": "5m",
   "ttl_minutes": 5,
   "deployed_at_utc": "2026-11-24T01:44:57Z",
@@ -33,5 +33,7 @@
   "bff_url": "https://keep-kanban-studio-backend.34.49.154.217.nip.io",
   "api_url": "https://keep-kanban-studio-api.34.49.154.217.nip.io",
   "teardown_mode": "terraform_destroy_workload_only",
-  "terraform_state_uri": "gs://ernani-demo-argolis-sdlc-tfstate/workloads/keep-kanban-studio"
+  "terraform_state_uri": "gs://ernani-demo-argolis-sdlc-tfstate/workloads/keep-kanban-studio",
+  "decommissioned_at_utc": "2026-11-24T02:01:57Z",
+  "decommissioned_reason": "TTL_EXPIRED (5m)"
 }
